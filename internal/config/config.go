@@ -8,10 +8,13 @@ import (
 )
 
 type Configuration struct {
+	Rest struct {
+		Port string `cfg:"port"`
+	} `cfg:"rest"`
 }
 
 var (
-	instance *Configuration
+	instance Configuration
 	once     sync.Once
 	initErr  error
 )
@@ -21,11 +24,11 @@ func Init() error {
 		var configDir string
 		flag.StringVar(&configDir, "config-dir", "config/", "Configuration file directory")
 		flag.Parse()
-		initErr = cfg.Load(instance, cfg.Dirs(configDir))
+		initErr = cfg.Load(&instance, cfg.Dirs(configDir))
 	})
 	return initErr
 }
 
 func Get() Configuration {
-	return *instance
+	return instance
 }
