@@ -1,0 +1,69 @@
+components:
+  schemas:
+    registry:
+      type: object
+      properties:
+        url:
+          type: string
+          description: "The URL of the container registry"
+        credentials:
+          type: object
+          properties:
+            secretRef:
+              type: object
+              properties:
+                name:
+                  type: string
+                  description: "The name of the secret containing the credentials for the container registry"
+                namespace:
+                  type: string
+                  default: "default"
+                  description: "The namespace of the secret containing the credentials for the container registry"
+    pulling:
+      type: object
+      description: "The frequency at which the container image should be pulled using cron expression"
+      properties:
+        cron:
+          type: string
+          description: "The cron expression for pulling the container image"
+        enabled:
+          type: boolean
+          description: "The flag to enable or disable the pulling of the container image"
+    rollback:
+      type: object
+      description: "The configuration for rolling back the deployment"
+      properties:
+        enabled:
+          type: boolean
+          description: "The flag to enable or disable the rollback of the deployment"
+        timeout:
+          type: string
+          description: "The time after which the deployment should be considered as failed"
+        strategy:
+          type: string
+          enum:
+            - "recreate"
+            - "rolling-update"
+          description: "The strategy to be used for rolling back the deployment"
+    weebhook:
+      type: object
+      description: "The configuration for the webhook"
+      properties:
+        enabled:
+          type: boolean
+          description: "The flag to enable or disable the webhook"
+    deployment:
+      properties:
+        name:
+          type: string
+          description: "The name of the deployment"
+        namespace:
+          type: string
+          default: "default"
+          description: "The namespace of the deployment"
+        container:
+          type: object
+          properties:
+            name:
+              type: string
+              description: "The name of the container"
