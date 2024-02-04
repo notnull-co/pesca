@@ -11,6 +11,9 @@ type Configuration struct {
 	Rest struct {
 		Port string `cfg:"port"`
 	} `cfg:"rest"`
+	Kubernetes struct {
+		Config string `cfg:"config"`
+	} `cfg:"kubernetes"`
 }
 
 var (
