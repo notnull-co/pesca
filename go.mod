@@ -4,6 +4,7 @@ go 1.21.6
 
 require (
 	github.com/labstack/echo/v4 v4.11.4
+	github.com/mattn/go-sqlite3 v1.14.22
 	github.com/notnull-co/cfg v1.0.4
 	github.com/rs/zerolog v1.31.0
 )
