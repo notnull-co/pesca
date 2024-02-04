@@ -9,7 +9,7 @@ spec:
     listKind: IscaList
     plural: iscas
     singular: isca
-  scope: Namespaced/Cluster
+  scope: Namespaced
   versions:
   - name: v1
     served: true
