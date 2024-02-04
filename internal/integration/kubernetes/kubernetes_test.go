@@ -34,20 +34,3 @@ func TestHealthy(t *testing.T) {
 	}
 	fmt.Printf("healthy: %v", healthy)
 }
-
-// func updateDeploymentImage(clientset *kubernetes.Clientset, namespace, deploymentName, newImage string) error {
-// 	deployment, err := clientset.AppsV1().Deployments(namespace).Get(context.TODO(), deploymentName, metav1.GetOptions{})
-// 	if err != nil {
-// 		return err
-// 	}
-
-// 	// Update the container image in the deployment
-// 	deployment.Spec.Template.Spec.Containers[0].Image = newImage
-
-// 	_, err = clientset.AppsV1().Deployments(namespace).Update(context.TODO(), deployment, metav1.UpdateOptions{})
-// 	if err != nil {
-// 		return err
-// 	}
-
-// 	return nil
-// }

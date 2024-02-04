@@ -11,6 +11,10 @@ type Configuration struct {
 	Rest struct {
 		Port string `cfg:"port"`
 	} `cfg:"rest"`
+	Database struct {
+		Schema string `cfg:"schema"`
+		Path   string `cfg:"path"`
+	} `cfg:"database"`
 	Kubernetes struct {
 		Config string `cfg:"config"`
 	} `cfg:"kubernetes"`
