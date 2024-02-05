@@ -26,7 +26,7 @@ type k8s struct {
 
 type Kubernetes interface {
 	UpdateImage(namespace, deploymentName, containerName, image string) error
-	IsContainerHealthy(namespace, deploymentName, containerName string) (bool, error)
+	IsContainerHealthy(namespace, deploymentName, containerName, image string) (bool, error)
 }
 
 func New() Kubernetes {
@@ -83,7 +83,7 @@ func (k *k8s) UpdateImage(namespace, deploymentName, containerName, image string
 	return nil
 }
 
-func (k *k8s) IsContainerHealthy(namespace, deploymentName, containerName string) (bool, error) {
+func (k *k8s) IsContainerHealthy(namespace, deploymentName, containerName, image string) (bool, error) {
 	deployment, err := k.k8s.AppsV1().Deployments(namespace).Get(context.TODO(), deploymentName, metav1.GetOptions{})
 	if err != nil {
 		return false, err
@@ -103,8 +103,7 @@ func (k *k8s) IsContainerHealthy(namespace, deploymentName, containerName string
 
 	for _, pod := range pods.Items {
 		for _, containerStatus := range pod.Status.ContainerStatuses {
-			ready := containerStatus.Ready
-			if !ready {
+			if containerStatus.Name == containerName && containerStatus.Image == image && !containerStatus.Ready {
 				return false, nil
 			}
 		}

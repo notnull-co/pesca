@@ -3,5 +3,3 @@ rest:
 database:
   schema: "../../scripts/schema.sql"
   path: "../../dist/pesca.sqlite"
-kubernetes:
-  config: "/home/murillovaz/.kube/config"

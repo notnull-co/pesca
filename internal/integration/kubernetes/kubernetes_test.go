@@ -27,7 +27,7 @@ func init() {
 }
 
 func TestHealthy(t *testing.T) {
-	healthy, err := instance.IsContainerHealthy("kube-system", "coredns", "core")
+	healthy, err := instance.IsContainerHealthy("kube-system", "coredns", "core", "core:latest")
 
 	if err != nil {
 		panic(err)
