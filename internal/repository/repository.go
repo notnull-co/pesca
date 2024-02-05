@@ -25,7 +25,12 @@ type repository struct {
 }
 
 type Repository interface {
-	GetIsca(id int) (*domain.Isca, error)
+	GetIsca(namespace, deploymentName, containerName string) (*domain.Isca, error)
+	GetIscaById(id int) (*domain.Isca, error)
+	UpdateIsca(isca domain.Isca) (*domain.Isca, error)
+	DisableIscaById(id int) (*domain.Isca, error)
+	DisableIsca(isca domain.Isca) (*domain.Isca, error)
+	CreateIsca(isca domain.Isca) (*domain.Isca, error)
 }
 
 func New() Repository {
@@ -49,49 +54,105 @@ func New() Repository {
 	return &instance
 }
 
-func (r *repository) GetIsca(id int) (*domain.Isca, error) {
+func (r *repository) CreateIsca(isca domain.Isca) (*domain.Isca, error) {
+	result, err := r.db.Exec("INSERT INTO Isca(AnzolId, DeploymentActive, DeploymentNamespace, DeploymentName, DeploymentContainerName) VALUES (?, ?, ?, ?, ?)", isca.AnzolId, isca.Deployment.Active, isca.Deployment.Namespace, isca.Deployment.Name, isca.Deployment.ContainerName)
+	if err != nil {
+		return nil, err
+	}
+
+	id, err := result.LastInsertId()
+
+	if err != nil {
+		return nil, err
+	}
+
+	return r.GetIscaById(int(id))
+}
+
+func (r *repository) UpdateIsca(isca domain.Isca) (*domain.Isca, error) {
+	_, err := r.db.Exec("UPDATE Isca SET DeploymentActive = ?, DeploymentNamespace = ?, DeploymentName = ?, DeploymentContainerName = ? WHERE Id = ?", isca.Deployment.Active, isca.Deployment.Namespace, isca.Deployment.Name, isca.Deployment.ContainerName, isca.Id)
+	if err != nil {
+		return nil, err
+	}
+
+	return r.GetIscaById(isca.Id)
+}
+
+func (r *repository) DisableIscaById(id int) (*domain.Isca, error) {
+	isca, err := r.GetIscaById(id)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return r.DisableIsca(*isca)
+}
+
+func (r *repository) DisableIsca(isca domain.Isca) (*domain.Isca, error) {
+	isca.Deployment.Active = false
+	return r.UpdateIsca(isca)
+}
+
+func (r *repository) GetIsca(namespace, deploymentName, containerName string) (*domain.Isca, error) {
+	return r.getIsca("WHERE I.DeploymentNamespace = ? AND I.DeploymentName = ? AND I.DeploymentContainerName = ?", namespace, deploymentName, containerName)
+}
+
+func (r *repository) GetIscaById(id int) (*domain.Isca, error) {
+	return r.getIsca("WHERE I.Id = ?", id)
+}
+
+func (r *repository) getIsca(where string, args ...any) (*domain.Isca, error) {
+
+	// TODO: change this left join to inner join to ensure that the anzol exists
 	rows, err := r.db.Query(`
 	SELECT 
-		I.Id, 
+		I.Id,
+		I.AnzolId,
+		I.DeploymentActive,
 		I.DeploymentNamespace,
 		I.DeploymentName, 
 		I.DeploymentContainerName,
-		COALESCE(I.RollbackTimeout, A.RollbackTimeout) AS RollbackTimeout,
-		COALESCE(I.RollbackStrategy, A.RollbackStrategy) AS RollbackStrategy,
-		COALESCE(I.RollbackEnabled, A.RollbackEnabled) AS RollbackEnabled
+		A.RollbackTimeout,
+		A.RollbackStrategy,
+		A.RollbackEnabled
 	FROM Isca I
-	INNER JOIN Anzol A ON A.Id = I.AnzolId
-	WHERE I.Id = ?
-	`, id)
+	LEFT JOIN Anzol A ON A.Id = I.AnzolId
+	`+where, args...)
+
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	rows.Next()
 
-	var isca domain.Isca
-	var rollbackTimeout, rollbackStrategy *int
-	var rollbackEnabled *bool
+	if rows.Next() {
+		var isca domain.Isca
+		var rollbackTimeout, rollbackStrategy *int
+		var rollbackEnabled *bool
 
-	err = rows.Scan(&isca.Id,
-		&isca.Deployment.Namespace,
-		&isca.Deployment.Name,
-		&isca.Deployment.ContainerName,
-		&rollbackTimeout,
-		&rollbackStrategy,
-		&rollbackEnabled,
-	)
-	if err != nil {
-		return nil, err
+		err = rows.Scan(&isca.Id,
+			&isca.AnzolId,
+			&isca.Deployment.Active,
+			&isca.Deployment.Namespace,
+			&isca.Deployment.Name,
+			&isca.Deployment.ContainerName,
+			&rollbackTimeout,
+			&rollbackStrategy,
+			&rollbackEnabled,
+		)
+		if err != nil {
+			return nil, err
+		}
+		err = rows.Err()
+		if err != nil {
+			return nil, err
+		}
+
+		mapToDomain(&isca, rollbackTimeout, rollbackStrategy, rollbackEnabled)
+
+		return &isca, nil
 	}
-	err = rows.Err()
-	if err != nil {
-		return nil, err
-	}
 
-	mapToDomain(&isca, rollbackTimeout, rollbackStrategy, rollbackEnabled)
-
-	return &isca, nil
+	return nil, nil
 }
 
 func mapToDomain(isca *domain.Isca, rollbackTimeout, rollbackStrategy *int, rollbackEnabled *bool) {

@@ -37,12 +37,23 @@ type Rollback struct {
 
 type Deployment struct {
 	Name          string
+	Active        bool
 	Namespace     string
 	ContainerName string
 }
 
+type Anzol struct {
+	Id int
+}
+
 type Isca struct {
 	Id         int
+	AnzolId    int
 	Deployment Deployment
 	Rollback   Rollback
+}
+
+type DeploymentImage struct {
+	Deployment
+	Image string
 }

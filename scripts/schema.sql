@@ -8,12 +8,10 @@ CREATE TABLE IF NOT EXISTS Anzol (
 CREATE TABLE IF NOT EXISTS Isca (
     Id INTEGER PRIMARY KEY AUTOINCREMENT,
     AnzolId INTEGER NOT NULL,
+    DeploymentActive BOOLEAN NOT NULL,
     DeploymentNamespace TEXT NOT NULL,
     DeploymentName TEXT NOT NULL,
     DeploymentContainerName TEXT NOT NULL,
-    RollbackTimeout INTEGER,
-    RollbackStrategy INTEGER,
-    RollbackEnabled BOOLEAN,
     FOREIGN KEY (AnzolId) REFERENCES Anzol(Id),
     UNIQUE (DeploymentName, AnzolId, DeploymentNamespace, DeploymentContainerName)
 );

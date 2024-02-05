@@ -2,9 +2,13 @@ package config
 
 import (
 	"flag"
+	"os"
 	"sync"
 
+	"github.com/rs/zerolog/log"
+
 	"github.com/notnull-co/cfg"
+	"github.com/rs/zerolog"
 )
 
 type Configuration struct {
@@ -18,6 +22,9 @@ type Configuration struct {
 	Kubernetes struct {
 		Config string `cfg:"config"`
 	} `cfg:"kubernetes"`
+	Logger struct {
+		Json bool `cfg:"json"`
+	} `cfg:"logger"`
 }
 
 var (
@@ -31,7 +38,11 @@ func Init() error {
 		var configDir string
 		flag.StringVar(&configDir, "config-dir", "config/", "Configuration file directory")
 		flag.Parse()
-		initErr = cfg.Load(&instance, cfg.Dirs(configDir))
+		initErr = cfg.Load(&instance, cfg.Dirs(configDir), cfg.UseEnv("cfg"))
+
+		if !instance.Logger.Json {
+			log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
+		}
 	})
 	return initErr
 }

@@ -7,13 +7,17 @@ import (
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/notnull-co/pesca/internal/channel"
 	"github.com/notnull-co/pesca/internal/config"
+	"github.com/notnull-co/pesca/internal/service"
 )
 
 type rest struct {
+	svc service.Service
 }
 
 func New() channel.Channel {
-	return &rest{}
+	return &rest{
+		svc: service.New(),
+	}
 }
 
 func (r *rest) Start() error {
