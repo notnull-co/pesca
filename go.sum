@@ -77,6 +77,8 @@ github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 h1:C3w9PqII01/Oq
 github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822/go.mod h1:+n7T8mK8HuQTcFwEeznm/DIxMOiR9yIdICNftLE1DvQ=
 github.com/notnull-co/cfg v1.0.4 h1:WCvKArgOlcc14XALENqKdUNYZMvYZeHOZnlqpDR+P1s=
 github.com/notnull-co/cfg v1.0.4/go.mod h1:wqzlls6+gVRZuMQA0n29cxBWSB19Y3XITliDLBnOy+o=
+github.com/notnull-co/dynaclient v0.0.4 h1:J8OEqKigk+EG0rEs+8rbYspVVRH4Luf6Nj/pxYCgMr4=
+github.com/notnull-co/dynaclient v0.0.4/go.mod h1:ZjxGgPPgwraBGxrJCvArxSiSf/gss+yotvdgUbhV+VA=
 github.com/onsi/ginkgo/v2 v2.13.0 h1:0jY9lJquiL8fcf3M4LAXN5aMlS/b2BV86HFFPCPMgE4=
 github.com/onsi/ginkgo/v2 v2.13.0/go.mod h1:TE309ZR8s5FsKKpuB1YAQYBzCaAfUgatB/xlT/ETL/o=
 github.com/onsi/gomega v1.29.0 h1:KIA/t2t5UBzoirT4H9tsML45GEbo3ouUnBHsCfD2tVg=

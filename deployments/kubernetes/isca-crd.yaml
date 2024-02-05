@@ -5,7 +5,7 @@ metadata:
 spec:
   group: notnull.io
   names:
-    kind: isca
+    kind: Isca
     listKind: IscaList
     plural: iscas
     singular: isca
@@ -88,10 +88,6 @@ spec:
                   name:
                     type: string
                     description: "The name of the deployment"
-                  namespace:
-                    type: string
-                    default: "default"
-                    description: "The namespace of the deployment"
                   container:
                     type: object
                     properties:

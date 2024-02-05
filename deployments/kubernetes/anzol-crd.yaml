@@ -1,11 +1,11 @@
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
-  name: anzois.notnull.io
+  name: anzois.k8s.notnull.io
 spec:
-  group: notnull.io
+  group: k8s.notnull.io
   names:
-    kind: anzol
+    kind: Anzol
     listKind: AnzolList
     plural: anzois
     singular: anzol
@@ -85,10 +85,6 @@ spec:
                   name:
                     type: string
                     description: "The name of the deployment"
-                  namespace:
-                    type: string
-                    default: "default"
-                    description: "The namespace of the deployment"
                   container:
                     type: object
                     properties:
