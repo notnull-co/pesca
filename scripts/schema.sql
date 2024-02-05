@@ -1,22 +1,21 @@
 CREATE TABLE IF NOT EXISTS Anzol (
     Id INTEGER PRIMARY KEY AUTOINCREMENT,
-    Namespace TEXT NOT NULL,
     RollbackTimeout INTEGER,
     RollbackStrategy INTEGER,
-    RollbackEnabled BOOLEAN NOT NULL,
-    UNIQUE (Namespace)
+    RollbackEnabled BOOLEAN NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS Isca (
     Id INTEGER PRIMARY KEY AUTOINCREMENT,
     AnzolId INTEGER NOT NULL,
+    DeploymentNamespace TEXT NOT NULL,
     DeploymentName TEXT NOT NULL,
     DeploymentContainerName TEXT NOT NULL,
     RollbackTimeout INTEGER,
     RollbackStrategy INTEGER,
     RollbackEnabled BOOLEAN,
     FOREIGN KEY (AnzolId) REFERENCES Anzol(Id),
-    UNIQUE (DeploymentName, AnzolId, DeploymentContainerName)
+    UNIQUE (DeploymentName, AnzolId, DeploymentNamespace, DeploymentContainerName)
 );
 
 CREATE TABLE IF NOT EXISTS ImageRevision (

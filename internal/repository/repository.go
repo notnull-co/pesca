@@ -53,7 +53,7 @@ func (r *repository) GetIsca(id int) (*domain.Isca, error) {
 	rows, err := r.db.Query(`
 	SELECT 
 		I.Id, 
-		A.Namespace,
+		I.DeploymentNamespace,
 		I.DeploymentName, 
 		I.DeploymentContainerName,
 		COALESCE(I.RollbackTimeout, A.RollbackTimeout) AS RollbackTimeout,
@@ -74,7 +74,7 @@ func (r *repository) GetIsca(id int) (*domain.Isca, error) {
 	var rollbackEnabled *bool
 
 	err = rows.Scan(&isca.Id,
-		&isca.Namespace,
+		&isca.Deployment.Namespace,
 		&isca.Deployment.Name,
 		&isca.Deployment.ContainerName,
 		&rollbackTimeout,

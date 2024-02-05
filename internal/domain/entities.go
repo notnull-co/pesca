@@ -37,12 +37,12 @@ type Rollback struct {
 
 type Deployment struct {
 	Name          string
+	Namespace     string
 	ContainerName string
 }
 
 type Isca struct {
 	Id         int
-	Namespace  string
 	Deployment Deployment
 	Rollback   Rollback
 }
