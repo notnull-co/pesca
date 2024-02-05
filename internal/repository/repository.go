@@ -102,8 +102,18 @@ func (r *repository) GetIscaById(id int) (*domain.Isca, error) {
 }
 
 func (r *repository) getIsca(where string, args ...any) (*domain.Isca, error) {
+	iscas, err := r.getIscas(where, args...)
 
-	// TODO: change this left join to inner join to ensure that the anzol exists
+	if len(iscas) > 0 {
+		return iscas[0], err
+	}
+
+	return nil, err
+}
+
+func (r *repository) getIscas(where string, args ...any) ([]*domain.Isca, error) {
+
+	// TODO: change this left join to inner join to ensure that the Anzol exists
 	rows, err := r.db.Query(`
 	SELECT 
 		I.Id,
@@ -124,7 +134,9 @@ func (r *repository) getIsca(where string, args ...any) (*domain.Isca, error) {
 	}
 	defer rows.Close()
 
-	if rows.Next() {
+	var iscas []*domain.Isca
+
+	for rows.Next() {
 		var isca domain.Isca
 		var rollbackTimeout, rollbackStrategy *int
 		var rollbackEnabled *bool
@@ -149,10 +161,10 @@ func (r *repository) getIsca(where string, args ...any) (*domain.Isca, error) {
 
 		mapToDomain(&isca, rollbackTimeout, rollbackStrategy, rollbackEnabled)
 
-		return &isca, nil
+		iscas = append(iscas, &isca)
 	}
 
-	return nil, nil
+	return iscas, nil
 }
 
 func mapToDomain(isca *domain.Isca, rollbackTimeout, rollbackStrategy *int, rollbackEnabled *bool) {
