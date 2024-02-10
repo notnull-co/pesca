@@ -13,6 +13,7 @@ type svc struct {
 
 type Service interface {
 	UpdateDeployments() error
+	StartRollback(isca domain.Isca, image domain.ImageRevision) error
 }
 
 func New() Service {
@@ -26,7 +27,20 @@ func New() Service {
 	return svc
 }
 
-func (r *svc) StartRollback(isca domain.Isca, image domain.ImageRevision) error {
+func (r *svc) StartRollback(isca domain.Isca, revision domain.ImageRevision) error {
+
+	oldRevision, err := r.repo.GetImageRevisionById(revision.PreviousImageRevisionId)
+	if err != nil {
+		return err
+	}
+	if oldRevision == nil {
+		return domain.NoBackwardsRevision
+	}
+	err = r.k8s.UpdateImage(isca, *oldRevision)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 

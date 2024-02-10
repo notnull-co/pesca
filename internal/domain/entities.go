@@ -7,7 +7,8 @@ const (
 	ImageStatusPending  ImageStatus = 1
 	ImageStatusStable   ImageStatus = 2
 	ImageStatusError    ImageStatus = 3
-	ImageStatusRollback ImageStatus = 3
+	ImageStatusRollback ImageStatus = 4
+	ImageStatusOutdated ImageStatus = 5
 )
 
 type ImageStatus int
@@ -25,6 +26,8 @@ type ImageRevision struct {
 const (
 	RollbackStrategyUnknown    RollbackStrategy = 0
 	RollbackStrategyChangeback RollbackStrategy = 1
+	RollbackStrategyRecreate   RollbackStrategy = 2
+	RollbackStrategyRestart    RollbackStrategy = 3
 )
 
 type RollbackStrategy int
@@ -40,20 +43,23 @@ type Deployment struct {
 	Active        bool
 	Namespace     string
 	ContainerName string
+	Repository    string
 }
 
 type Anzol struct {
-	Id int
+	Id       int
+	Registry Registry
+}
+
+type Registry struct {
+	Url string
+	// TODO: Add credentials HERE
 }
 
 type Isca struct {
 	Id         int
 	AnzolId    int
+	Registry   Registry
 	Deployment Deployment
 	Rollback   Rollback
-}
-
-type DeploymentImage struct {
-	Deployment
-	Image string
 }

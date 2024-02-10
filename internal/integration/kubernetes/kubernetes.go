@@ -18,6 +18,7 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/clientcmd"
+	"k8s.io/client-go/util/retry"
 )
 
 var (
@@ -35,7 +36,7 @@ type DeploymentUpdate struct {
 }
 
 type Kubernetes interface {
-	UpdateImage(namespace, deploymentName, containerName, image string) error
+	UpdateImage(isca domain.Isca, revision domain.ImageRevision) error
 	IsContainerHealthy(namespace, deploymentName, containerName, image string) (bool, error)
 	WatchDeployments(annotationFilter map[string]string, updated chan *DeploymentUpdate, created chan map[domain.Deployment]string, deleted chan map[domain.Deployment]string) (chan struct{}, error)
 }
@@ -68,27 +69,27 @@ func New() Kubernetes {
 	return &instance
 }
 
-func (k *k8s) UpdateImage(namespace, deploymentName, containerName, image string) error {
-	deployment, err := k.k8s.AppsV1().Deployments(namespace).Get(context.TODO(), deploymentName, metav1.GetOptions{})
-	if err != nil {
-		return err
-	}
-
-	var found bool
-	for _, c := range deployment.Spec.Template.Spec.Containers {
-		if c.Name == containerName {
-			found = false
-			c.Image = containerName
+func (k *k8s) UpdateImage(isca domain.Isca, revision domain.ImageRevision) error {
+	retryErr := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		deployment, getErr := k.k8s.AppsV1().Deployments(isca.Deployment.Namespace).Get(context.TODO(), isca.Deployment.Name, metav1.GetOptions{})
+		if getErr != nil {
+			return getErr
 		}
-	}
-
-	if !found {
-		return fmt.Errorf("container %s/%s/%s could not be found", namespace, deploymentName, containerName)
-	}
-
-	_, err = k.k8s.AppsV1().Deployments(namespace).Update(context.TODO(), deployment, metav1.UpdateOptions{})
-	if err != nil {
-		return err
+		var found bool
+		for _, c := range deployment.Spec.Template.Spec.Containers {
+			if c.Name == isca.Deployment.ContainerName {
+				found = false
+				c.Image = isca.Registry.Url + isca.Deployment.Repository + ":" + revision.Version
+			}
+		}
+		if !found {
+			return fmt.Errorf("container %s/%s/%s could not be found", isca.Deployment.Namespace, isca.Deployment.Name, isca.Deployment.ContainerName)
+		}
+		_, updateErr := k.k8s.AppsV1().Deployments(isca.Deployment.Namespace).Update(context.TODO(), deployment, metav1.UpdateOptions{})
+		return updateErr
+	})
+	if retryErr != nil {
+		return retryErr
 	}
 
 	return nil

@@ -3,6 +3,7 @@ CREATE TABLE IF NOT EXISTS Anzol (
     RollbackTimeout INTEGER,
     RollbackStrategy INTEGER,
     RollbackEnabled BOOLEAN NOT NULL
+    RegistryUrl TEXT NOT NULL,
 );
 
 CREATE TABLE IF NOT EXISTS Isca (

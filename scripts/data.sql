@@ -1,5 +1,5 @@
--- INSERT INTO Anzol (Namespace, RollbackTimeout, RollbackStrategy, RollbackEnabled) VALUES ('exampleNamespace1', 60, 1, 1);
--- INSERT INTO Anzol (Namespace, RollbackTimeout, RollbackStrategy, RollbackEnabled) VALUES ('exampleNamespace2', 120, 2, 0);
+-- INSERT INTO Anzol (Namespace, RollbackTimeout, RollbackStrategy, RollbackEnabled, RegistryUrl) VALUES ('exampleNamespace1', 60, 1, 1, 'exampleRegistryUrl1');
+-- INSERT INTO Anzol (Namespace, RollbackTimeout, RollbackStrategy, RollbackEnabled, RegistryUrl) VALUES ('exampleNamespace2', 120, 2, 0, 'exampleRegistryUrl2');
 
 -- INSERT INTO Isca (AnzolId, DeploymentName, DeploymentContainerName, RollbackTimeout, RollbackStrategy, RollbackEnabled) VALUES (1, 'Deployment1', 'Container1', 30, 1, 1);
 -- INSERT INTO Isca (AnzolId, DeploymentName, DeploymentContainerName, RollbackTimeout, RollbackStrategy, RollbackEnabled) VALUES (2, 'Deployment2', 'Container2', 60, 2, 0);

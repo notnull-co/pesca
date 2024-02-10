@@ -31,6 +31,7 @@ type Repository interface {
 	DisableIscaById(id int) (*domain.Isca, error)
 	DisableIsca(isca domain.Isca) (*domain.Isca, error)
 	CreateIsca(isca domain.Isca) (*domain.Isca, error)
+	GetImageRevisionById(id int) (*domain.ImageRevision, error)
 }
 
 func New() Repository {
@@ -124,7 +125,8 @@ func (r *repository) getIscas(where string, args ...any) ([]*domain.Isca, error)
 		I.DeploymentContainerName,
 		A.RollbackTimeout,
 		A.RollbackStrategy,
-		A.RollbackEnabled
+		A.RollbackEnabled,
+		A.RegistryUrl
 	FROM Isca I
 	LEFT JOIN Anzol A ON A.Id = I.AnzolId
 	`+where, args...)
@@ -150,6 +152,7 @@ func (r *repository) getIscas(where string, args ...any) ([]*domain.Isca, error)
 			&rollbackTimeout,
 			&rollbackStrategy,
 			&rollbackEnabled,
+			&isca.Registry.Url,
 		)
 		if err != nil {
 			return nil, err
@@ -159,7 +162,7 @@ func (r *repository) getIscas(where string, args ...any) ([]*domain.Isca, error)
 			return nil, err
 		}
 
-		mapToDomain(&isca, rollbackTimeout, rollbackStrategy, rollbackEnabled)
+		mapIscaToDomain(&isca, rollbackTimeout, rollbackStrategy, rollbackEnabled)
 
 		iscas = append(iscas, &isca)
 	}
@@ -167,7 +170,67 @@ func (r *repository) getIscas(where string, args ...any) ([]*domain.Isca, error)
 	return iscas, nil
 }
 
-func mapToDomain(isca *domain.Isca, rollbackTimeout, rollbackStrategy *int, rollbackEnabled *bool) {
+func (r *repository) GetImageRevisionById(id int) (*domain.ImageRevision, error) {
+	return r.getImageRevision("WHERE I.Id = ?", id)
+}
+
+func (r *repository) getImageRevision(where string, args ...any) (*domain.ImageRevision, error) {
+	iscas, err := r.getImageRevisions(where, args...)
+
+	if len(iscas) > 0 {
+		return iscas[0], err
+	}
+
+	return nil, err
+}
+
+func (r *repository) getImageRevisions(where string, args ...any) ([]*domain.ImageRevision, error) {
+
+	rows, err := r.db.Query(`
+	SELECT
+    	I.Id,
+    	I.IscaId,
+    	I.PreviousImageRevisionId,
+    	I.Version,
+    	I.Status,
+    	I.CreatedAt,
+    	I.UpdatedAt,
+	FROM ImageRevision I
+	`+where, args...)
+
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var revisions []*domain.ImageRevision
+
+	for rows.Next() {
+		var revision domain.ImageRevision
+
+		err = rows.Scan(&revision.Id,
+			&revision.Id,
+			&revision.IscaId,
+			&revision.PreviousImageRevisionId,
+			&revision.Version,
+			&revision.Status,
+			&revision.CreatedAt,
+			&revision.UpdatedAt,
+		)
+		if err != nil {
+			return nil, err
+		}
+		err = rows.Err()
+		if err != nil {
+			return nil, err
+		}
+		revisions = append(revisions, &revision)
+	}
+
+	return revisions, nil
+}
+
+func mapIscaToDomain(isca *domain.Isca, rollbackTimeout, rollbackStrategy *int, rollbackEnabled *bool) {
 	if rollbackEnabled != nil && *rollbackEnabled {
 		isca.Rollback = domain.Rollback{
 			Enabled: true,
