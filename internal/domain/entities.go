@@ -63,3 +63,9 @@ type Isca struct {
 	Deployment Deployment
 	Rollback   Rollback
 }
+
+type ManifestTag struct {
+	Tag       string
+	CreatedAt time.Time
+	SHA       string
+}
