@@ -145,7 +145,7 @@ func (r *registryClient) listTags(registryURL, repositoryName string) (*tag, err
 	return tags, nil
 }
 
-func (r *registryClient) getSHAFromV2(registryURL, repositoryName, tag string, wg *sync.WaitGroup) (*domain.ManifestTag, error) {
+func (r *registryClient) getLastManifestForTagv2(registryURL, repositoryName, tag string, wg *sync.WaitGroup) (*domain.ManifestTag, error) {
 	c := client.New[manifestv1]()
 
 	req, err := client.NewRequest(http.MethodGet, "https://"+registryURL+apiVersion+repositoryName+MANIFEST_ENDPOINT+tag, nil)
@@ -194,7 +194,7 @@ func (r *registryClient) getSHAFromV2(registryURL, repositoryName, tag string, w
 		}
 	}
 
-	tagv2, err := r.getLastManifestForTagv2(registryURL, repositoryName, tag, wg)
+	tagv2, err := r.getSHAFromV2(registryURL, repositoryName, tag, wg)
 	if err != nil {
 		return nil, err
 	}
@@ -206,7 +206,7 @@ func (r *registryClient) getSHAFromV2(registryURL, repositoryName, tag string, w
 	}, nil
 }
 
-func (r *registryClient) getLastManifestForTagv2(registryURL, repositoryName, tag string, wg *sync.WaitGroup) (*domain.ManifestTag, error) {
+func (r *registryClient) getSHAFromV2(registryURL, repositoryName, tag string, wg *sync.WaitGroup) (*domain.ManifestTag, error) {
 	defer wg.Done()
 
 	c := client.New[any]()
@@ -264,7 +264,7 @@ func (r *registryClient) PullingImage(registryURL, repositoryName string) (domai
 		wg.Add(1)
 
 		go func(tag string) {
-			manifest, err := r.getSHAFromV2(registryURL, repositoryName, tag, &wg)
+			manifest, err := r.getLastManifestForTagv2(registryURL, repositoryName, tag, &wg)
 			if err != nil {
 				log.Fatal().Err(err).Msg("getting last manifest call failed")
 				return
