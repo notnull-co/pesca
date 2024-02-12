@@ -25,6 +25,7 @@ type repository struct {
 }
 
 type Repository interface {
+	GetIscas() ([]*domain.Isca, error)
 	GetIsca(namespace, deploymentName, containerName string) (*domain.Isca, error)
 	GetIscaById(id int) (*domain.Isca, error)
 	UpdateIsca(isca domain.Isca) (*domain.Isca, error)
@@ -32,6 +33,7 @@ type Repository interface {
 	DisableIsca(isca domain.Isca) (*domain.Isca, error)
 	CreateIsca(isca domain.Isca) (*domain.Isca, error)
 	GetImageRevisionById(id int) (*domain.ImageRevision, error)
+	GetImageRevisionByIscaId(iscaId int) (*domain.ImageRevision, error)
 	CreateImageRevision(imageRevision domain.ImageRevision) (*domain.ImageRevision, error)
 	UpdateStatusImageRevision(imageRevision domain.ImageRevision) (*domain.ImageRevision, error)
 }
@@ -128,6 +130,10 @@ func (r *repository) GetIscaById(id int) (*domain.Isca, error) {
 	return r.getIsca("WHERE I.Id = ?", id)
 }
 
+func (r *repository) GetIscas() ([]*domain.Isca, error) {
+	return r.getIscas("")
+}
+
 func (r *repository) getIsca(where string, args ...any) (*domain.Isca, error) {
 	iscas, err := r.getIscas(where, args...)
 
@@ -198,6 +204,10 @@ func (r *repository) getIscas(where string, args ...any) ([]*domain.Isca, error)
 
 func (r *repository) GetImageRevisionById(id int) (*domain.ImageRevision, error) {
 	return r.getImageRevision("WHERE I.Id = ?", id)
+}
+
+func (r *repository) GetImageRevisionByIscaId(iscaId int) (*domain.ImageRevision, error) {
+	return r.getImageRevision("WHERE I.IscaId = ?", iscaId)
 }
 
 func (r *repository) getImageRevision(where string, args ...any) (*domain.ImageRevision, error) {

@@ -2,8 +2,8 @@ CREATE TABLE IF NOT EXISTS Anzol (
     Id INTEGER PRIMARY KEY AUTOINCREMENT,
     RollbackTimeout INTEGER,
     RollbackStrategy INTEGER,
-    RollbackEnabled BOOLEAN NOT NULL
-    RegistryUrl TEXT NOT NULL,
+    RollbackEnabled BOOLEAN NOT NULL,
+    RegistryUrl TEXT NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS Isca (
