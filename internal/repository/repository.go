@@ -32,6 +32,8 @@ type Repository interface {
 	DisableIsca(isca domain.Isca) (*domain.Isca, error)
 	CreateIsca(isca domain.Isca) (*domain.Isca, error)
 	GetImageRevisionById(id int) (*domain.ImageRevision, error)
+	CreateImageRevision(imageRevision domain.ImageRevision) (*domain.ImageRevision, error)
+	UpdateStatusImageRevision(imageRevision domain.ImageRevision) (*domain.ImageRevision, error)
 }
 
 func New() Repository {
@@ -77,6 +79,30 @@ func (r *repository) UpdateIsca(isca domain.Isca) (*domain.Isca, error) {
 	}
 
 	return r.GetIscaById(isca.Id)
+}
+
+func (r *repository) CreateImageRevision(imageRevision domain.ImageRevision) (*domain.ImageRevision, error) {
+	result, err := r.db.Exec("INSERT INTO ImageRevision(IscaId, PreviousImageRevisionId, Version, Status, CreatedAt, UpdatedAt) VALUES (?, ?, ?, ?, ?)", imageRevision.IscaId, imageRevision.PreviousImageRevisionId, imageRevision.Version, imageRevision.CreatedAt, imageRevision.UpdatedAt)
+	if err != nil {
+		return nil, err
+	}
+
+	id, err := result.LastInsertId()
+
+	if err != nil {
+		return nil, err
+	}
+
+	return r.GetImageRevisionById(int(id))
+}
+
+func (r *repository) UpdateStatusImageRevision(imageRevision domain.ImageRevision) (*domain.ImageRevision, error) {
+	_, err := r.db.Exec("UPDATE ImageRevision SET Status = ?, UpdatedAt = ? WHERE Id = ?", imageRevision.Status, imageRevision.UpdatedAt, imageRevision.Id)
+	if err != nil {
+		return nil, err
+	}
+
+	return r.GetImageRevisionById(imageRevision.Id)
 }
 
 func (r *repository) DisableIscaById(id int) (*domain.Isca, error) {
