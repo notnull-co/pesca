@@ -3,8 +3,8 @@ package registry
 import (
 	"encoding/json"
 	"net/http"
+	"sort"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/notnull-co/dynaclient/pkg/client"
@@ -22,16 +22,18 @@ const (
 )
 
 type RegistryClient interface {
-	PullingImage(registryURL, repositoryName string) (domain.ManifestTag, error)
+	PollingImage(registryURL, repositoryName string, strategy domain.PullingStrategy) (domain.Image, error)
 }
 
 type registryClient struct {
 	*RoundTripper
+	strategyFunction map[domain.PullingStrategy]func(tags *tag, registryURL string, repositoryName string) (*domain.Image, error)
 }
 
 func NewRegistry() RegistryClient {
 	return &registryClient{
-		RoundTripper: newRoundTripper(map[string]string{}),
+		RoundTripper:     newRoundTripper(map[string]string{}),
+		strategyFunction: map[domain.PullingStrategy]func(tags *tag, registryURL string, repositoryName string) (*domain.Image, error){},
 	}
 }
 
@@ -60,6 +62,11 @@ func (r *registryClient) setCachedToken(registryURL, repositoryName string) erro
 	r.AddHeader("Authorization", "Bearer "+cachedToken[registryURL+repositoryName].token)
 
 	return nil
+}
+
+func (r *registryClient) setStrategyFunctions() {
+	r.strategyFunction[domain.Lexicographic] = r.applyLexicographicStrategy
+	r.strategyFunction[domain.LastDate] = r.applyLastDateStrategy
 }
 
 func (r *registryClient) setToken(registryURL, repositoryName string) (token, error) {
@@ -145,7 +152,7 @@ func (r *registryClient) listTags(registryURL, repositoryName string) (*tag, err
 	return tags, nil
 }
 
-func (r *registryClient) getLastManifestForTagv2(registryURL, repositoryName, tag string, wg *sync.WaitGroup) (*domain.ManifestTag, error) {
+func (r *registryClient) getLastManifestForTagv1(registryURL, repositoryName, tag string) (*domain.Image, error) {
 	c := client.New[manifestv1]()
 
 	req, err := client.NewRequest(http.MethodGet, "https://"+registryURL+apiVersion+repositoryName+MANIFEST_ENDPOINT+tag, nil)
@@ -194,26 +201,24 @@ func (r *registryClient) getLastManifestForTagv2(registryURL, repositoryName, ta
 		}
 	}
 
-	tagv2, err := r.getSHAFromV2(registryURL, repositoryName, tag, wg)
+	hash, err := r.getImageHash(registryURL, repositoryName, tag)
 	if err != nil {
 		return nil, err
 	}
 
-	return &domain.ManifestTag{
+	return &domain.Image{
 		Tag:       tag,
-		SHA:       tagv2.SHA,
+		Digest:    hash,
 		CreatedAt: lastDate,
 	}, nil
 }
 
-func (r *registryClient) getSHAFromV2(registryURL, repositoryName, tag string, wg *sync.WaitGroup) (*domain.ManifestTag, error) {
-	defer wg.Done()
-
+func (r *registryClient) getImageHash(registryURL, repositoryName, tag string) (string, error) {
 	c := client.New[any]()
 
 	req, err := client.NewRequest(http.MethodGet, "https://"+registryURL+apiVersion+repositoryName+MANIFEST_ENDPOINT+tag, nil)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 
 	r.AddHeader("Accept", headerV2)
@@ -222,7 +227,7 @@ func (r *registryClient) getSHAFromV2(registryURL, repositoryName, tag string, w
 
 	_, httpResponse, err := c.Do(req)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 
 	if httpResponse != nil {
@@ -230,19 +235,16 @@ func (r *registryClient) getSHAFromV2(registryURL, repositoryName, tag string, w
 			var httpError httpError
 
 			if err := json.Unmarshal(httpResponse.Body(), &httpError); err != nil {
-				return nil, err
+				return "", err
 			}
 
-			return nil, &httpError
+			return "", &httpError
 		}
 	}
 
 	shaDigest := httpResponse.Header.Get("Docker-Content-Digest")
 
-	return &domain.ManifestTag{
-		Tag: tag,
-		SHA: shaDigest,
-	}, nil
+	return shaDigest, nil
 }
 
 func getAuthenticationParams(realmHeader string) (realm string, service string) {
@@ -251,43 +253,66 @@ func getAuthenticationParams(realmHeader string) (realm string, service string) 
 	return realm, service
 }
 
-func (r *registryClient) PullingImage(registryURL, repositoryName string) (domain.ManifestTag, error) {
+func (r *registryClient) PollingImage(registryURL, repositoryName string, strategy domain.PullingStrategy) (domain.Image, error) {
+	r.setStrategyFunctions()
+
 	tags, err := r.listTags(registryURL, repositoryName)
 	if err != nil {
-		return domain.ManifestTag{}, err
+		return domain.Image{}, err
 	}
 
-	results := make(chan *domain.ManifestTag, len(tags.Tags))
+	image, err := r.strategyFunction[strategy](tags, registryURL, repositoryName)
+	if err != nil {
+		return domain.Image{}, nil
+	}
 
-	var wg sync.WaitGroup
+	return *image, nil
+}
+
+func (r *registryClient) applyLastDateStrategy(tags *tag, registryURL, repositoryName string) (*domain.Image, error) {
+	results := make(chan *domain.Image, len(tags.Tags))
+
 	for _, tag := range tags.Tags {
-		wg.Add(1)
-
 		go func(tag string) {
-			manifest, err := r.getLastManifestForTagv2(registryURL, repositoryName, tag, &wg)
+			manifest, err := r.getLastManifestForTagv1(registryURL, repositoryName, tag)
 			if err != nil {
 				log.Fatal().Err(err).Msg("getting last manifest call failed")
 				return
 			}
-
 			results <- manifest
 		}(tag)
 	}
 
-	wg.Wait()
+	lastImageCreated := getTheLastImageByDateFromTheChannel(results, len(tags.Tags))
 
-	var lastTagCreated domain.ManifestTag
-	for manifest := range results {
-		diff := manifest.CreatedAt.Sub(lastTagCreated.CreatedAt)
+	return &lastImageCreated, nil
+}
+
+func (r *registryClient) applyLexicographicStrategy(tags *tag, registryURL, repositoryName string) (*domain.Image, error) {
+	sort.Strings(tags.Tags)
+
+	lastTagReleased := tags.Tags[len(tags.Tags)-1]
+
+	image, err := r.getLastManifestForTagv1(registryURL, repositoryName, lastTagReleased)
+	if err != nil {
+		return nil, err
+	}
+
+	return image, nil
+}
+
+func getTheLastImageByDateFromTheChannel(channel chan *domain.Image, lenTags int) domain.Image {
+	var lastImageCreated domain.Image
+
+	for range lenTags {
+		manifest := <-channel
+
+		diff := manifest.CreatedAt.Sub(lastImageCreated.CreatedAt)
 
 		if diff > 0 {
-			lastTagCreated = *manifest
-		}
-
-		if len(results) == 0 {
-			close(results)
+			lastImageCreated = *manifest
 		}
 	}
 
-	return lastTagCreated, nil
+	return lastImageCreated
 }

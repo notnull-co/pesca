@@ -9,9 +9,21 @@ const (
 	ImageStatusError    ImageStatus = 3
 	ImageStatusRollback ImageStatus = 4
 	ImageStatusOutdated ImageStatus = 5
+
+	RollbackStrategyUnknown    RollbackStrategy = 0
+	RollbackStrategyChangeback RollbackStrategy = 1
+	RollbackStrategyRecreate   RollbackStrategy = 2
+	RollbackStrategyRestart    RollbackStrategy = 3
+
+	Lexicographic PullingStrategy = 0
+	LastDate      PullingStrategy = 1
 )
 
-type ImageStatus int
+type (
+	PullingStrategy  int
+	ImageStatus      int
+	RollbackStrategy int
+)
 
 type ImageRevision struct {
 	Id                      int
@@ -22,15 +34,6 @@ type ImageRevision struct {
 	CreatedAt               time.Time
 	UpdatedAt               time.Time
 }
-
-const (
-	RollbackStrategyUnknown    RollbackStrategy = 0
-	RollbackStrategyChangeback RollbackStrategy = 1
-	RollbackStrategyRecreate   RollbackStrategy = 2
-	RollbackStrategyRestart    RollbackStrategy = 3
-)
-
-type RollbackStrategy int
 
 type Rollback struct {
 	Timeout  time.Duration
@@ -57,15 +60,16 @@ type Registry struct {
 }
 
 type Isca struct {
-	Id         int
-	AnzolId    int
-	Registry   Registry
-	Deployment Deployment
-	Rollback   Rollback
+	Id              int
+	AnzolId         int
+	Registry        Registry
+	Deployment      Deployment
+	Rollback        Rollback
+	PullingStrategy PullingStrategy
 }
 
-type ManifestTag struct {
+type Image struct {
 	Tag       string
 	CreatedAt time.Time
-	SHA       string
+	Digest    string
 }
