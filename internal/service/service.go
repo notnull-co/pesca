@@ -1,25 +1,32 @@
 package service
 
 import (
+	"context"
+	"time"
+
 	"github.com/notnull-co/pesca/internal/domain"
 	"github.com/notnull-co/pesca/internal/integration/kubernetes"
+	"github.com/notnull-co/pesca/internal/integration/registry"
 	"github.com/notnull-co/pesca/internal/repository"
 )
 
 type svc struct {
 	repo repository.Repository
 	k8s  kubernetes.Kubernetes
+	reg  registry.RegistryClient
 }
 
 type Service interface {
 	UpdateDeployments() error
 	StartRollback(isca domain.Isca, image domain.ImageRevision) error
+	StartPolling(ctx context.Context) (chan *domain.NewImage, error)
 }
 
 func New() Service {
 	svc := &svc{
 		repo: repository.New(),
 		k8s:  kubernetes.New(),
+		reg:  registry.NewRegistry(),
 	}
 
 	go svc.UpdateDeployments()
@@ -28,7 +35,6 @@ func New() Service {
 }
 
 func (r *svc) StartRollback(isca domain.Isca, revision domain.ImageRevision) error {
-
 	oldRevision, err := r.repo.GetImageRevisionById(revision.PreviousImageRevisionId)
 	if err != nil {
 		return err
@@ -118,6 +124,7 @@ func (r *svc) UpdateDeployments() error {
 				// TODO: Fix this. Add Anzol repository methods
 				isca.AnzolId = 1
 
+				isca.Rollback.Timeout = time.Hour * 1
 				_, err = r.repo.CreateIsca(isca)
 
 				if err != nil {
@@ -125,6 +132,59 @@ func (r *svc) UpdateDeployments() error {
 				}
 			}
 		}
-
 	}
+}
+
+func (r *svc) StartPolling(ctx context.Context) (chan *domain.NewImage, error) {
+	iscas, err := r.repo.GetIscas()
+	if err != nil {
+		return nil, err
+	}
+
+	revisionsToUpdate := make(chan *domain.NewImage)
+	for _, isca := range iscas {
+		if !isca.Deployment.Active {
+			continue
+		}
+
+		go func(isca domain.Isca) error {
+			lastUpdatedImage, err := r.reg.PollingImage(isca.Registry.Url, isca.Deployment.Repository, isca.PullingStrategy)
+			if err != nil {
+				return err
+			}
+
+			imageRevision, err := r.repo.GetImageRevisionByIscaId(isca.Id)
+			if err != nil {
+				return err
+			}
+
+			if imageRevision == nil {
+				imageRevision = &domain.ImageRevision{}
+			}
+
+			if imageRevision.Version == lastUpdatedImage.Digest {
+				return nil
+			}
+
+			newImage, err := r.repo.CreateImageRevision(domain.ImageRevision{
+				IscaId:                  isca.Id,
+				PreviousImageRevisionId: imageRevision.Id,
+				Version:                 lastUpdatedImage.Digest,
+				CreatedAt:               time.Now(),
+				Status:                  domain.ImageStatusPending,
+			})
+			if err != nil {
+				return err
+			}
+
+			revisionsToUpdate <- &domain.NewImage{
+				Isca:          isca,
+				ImageRevision: *newImage,
+			}
+
+			return nil
+		}(*isca)
+	}
+
+	return revisionsToUpdate, nil
 }
