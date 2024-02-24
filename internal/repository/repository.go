@@ -60,7 +60,7 @@ func New() Repository {
 }
 
 func (r *repository) CreateIsca(isca domain.Isca) (*domain.Isca, error) {
-	result, err := r.db.Exec("INSERT INTO Isca(AnzolId, DeploymentActive, DeploymentNamespace, DeploymentName, DeploymentContainerName) VALUES (?, ?, ?, ?, ?)", isca.AnzolId, isca.Deployment.Active, isca.Deployment.Namespace, isca.Deployment.Name, isca.Deployment.ContainerName)
+	result, err := r.db.Exec("INSERT INTO Isca (AnzolId, RegistryUrl, DeploymentName, DeploymentActive, DeploymentNamespace, DeploymentContainerName, DeploymentRepository, PullingStrategy) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", isca.AnzolId, isca.Registry.Url, isca.Deployment.Name, isca.Deployment.Active, isca.Deployment.Namespace, isca.Deployment.ContainerName, isca.Deployment.Repository, isca.PullingStrategy)
 	if err != nil {
 		return nil, err
 	}
@@ -84,7 +84,7 @@ func (r *repository) UpdateIsca(isca domain.Isca) (*domain.Isca, error) {
 }
 
 func (r *repository) CreateImageRevision(imageRevision domain.ImageRevision) (*domain.ImageRevision, error) {
-	result, err := r.db.Exec("INSERT INTO ImageRevision(IscaId, PreviousImageRevisionId, Version, Status, CreatedAt, UpdatedAt) VALUES (?, ?, ?, ?, ?)", imageRevision.IscaId, imageRevision.PreviousImageRevisionId, imageRevision.Version, imageRevision.CreatedAt, imageRevision.UpdatedAt)
+	result, err := r.db.Exec("INSERT INTO ImageRevision(IscaId, PreviousImageRevisionId, Version, Status, CreatedAt, UpdatedAt) VALUES (?, ?, ?, ?, ?, ?)", imageRevision.IscaId, imageRevision.PreviousImageRevisionId, imageRevision.Version, imageRevision.Status, imageRevision.CreatedAt, imageRevision.UpdatedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -151,14 +151,16 @@ func (r *repository) getIscas(where string, args ...any) ([]*domain.Isca, error)
 	SELECT 
 		I.Id,
 		I.AnzolId,
+		I.RegistryUrl,
+		I.DeploymentName, 
 		I.DeploymentActive,
 		I.DeploymentNamespace,
-		I.DeploymentName, 
 		I.DeploymentContainerName,
+		I.DeploymentRepository,
 		A.RollbackTimeout,
 		A.RollbackStrategy,
 		A.RollbackEnabled,
-		A.RegistryUrl
+		I.PullingStrategy
 	FROM Isca I
 	LEFT JOIN Anzol A ON A.Id = I.AnzolId
 	`+where, args...)
@@ -177,14 +179,16 @@ func (r *repository) getIscas(where string, args ...any) ([]*domain.Isca, error)
 
 		err = rows.Scan(&isca.Id,
 			&isca.AnzolId,
+			&isca.Registry.Url,
+			&isca.Deployment.Name,
 			&isca.Deployment.Active,
 			&isca.Deployment.Namespace,
-			&isca.Deployment.Name,
 			&isca.Deployment.ContainerName,
+			&isca.Deployment.Repository,
 			&rollbackTimeout,
 			&rollbackStrategy,
 			&rollbackEnabled,
-			&isca.Registry.Url,
+			&isca.PullingStrategy,
 		)
 		if err != nil {
 			return nil, err
@@ -230,9 +234,10 @@ func (r *repository) getImageRevisions(where string, args ...any) ([]*domain.Ima
     	I.Version,
     	I.Status,
     	I.CreatedAt,
-    	I.UpdatedAt,
+    	I.UpdatedAt
 	FROM ImageRevision I
-	`+where, args...)
+	`+where+`
+	ORDER BY I.CreatedAt DESC`, args...)
 
 	if err != nil {
 		return nil, err
@@ -245,7 +250,6 @@ func (r *repository) getImageRevisions(where string, args ...any) ([]*domain.Ima
 		var revision domain.ImageRevision
 
 		err = rows.Scan(&revision.Id,
-			&revision.Id,
 			&revision.IscaId,
 			&revision.PreviousImageRevisionId,
 			&revision.Version,
