@@ -31,10 +31,19 @@ type registryClient struct {
 }
 
 func NewRegistry() RegistryClient {
-	return &registryClient{
+	registry := &registryClient{
 		RoundTripper:     newRoundTripper(map[string]string{}),
 		strategyFunction: map[domain.PullingStrategy]func(tags *tag, registryURL string, repositoryName string) (*domain.Image, error){},
 	}
+
+	defer registry.setStrategyFunctions()
+
+	return registry
+}
+
+func (r *registryClient) setStrategyFunctions() {
+	r.strategyFunction[domain.Lexicographic] = r.applyLexicographicStrategy
+	r.strategyFunction[domain.LastDate] = r.applyLastDateStrategy
 }
 
 var cachedToken = map[string]struct {
@@ -42,12 +51,15 @@ var cachedToken = map[string]struct {
 	expiresAt time.Time
 }{}
 
-func (r *registryClient) setCachedToken(registryURL, repositoryName string) error {
+func (r *registryClient) getCachedToken(registryURL, repositoryName string) (map[string]struct {
+	token     string
+	expiresAt time.Time
+}, error) {
 	token, ok := cachedToken[registryURL+repositoryName]
 	if !ok || time.Until(token.expiresAt) < 30*time.Second {
 		token, err := r.setToken(registryURL, repositoryName)
 		if err != nil {
-			return err
+			return nil, err
 		}
 
 		cachedToken[registryURL+repositoryName] = struct {
@@ -59,14 +71,7 @@ func (r *registryClient) setCachedToken(registryURL, repositoryName string) erro
 		}
 	}
 
-	r.AddHeader("Authorization", "Bearer "+cachedToken[registryURL+repositoryName].token)
-
-	return nil
-}
-
-func (r *registryClient) setStrategyFunctions() {
-	r.strategyFunction[domain.Lexicographic] = r.applyLexicographicStrategy
-	r.strategyFunction[domain.LastDate] = r.applyLastDateStrategy
+	return cachedToken, nil
 }
 
 func (r *registryClient) setToken(registryURL, repositoryName string) (token, error) {
@@ -118,7 +123,7 @@ func (r *registryClient) setToken(registryURL, repositoryName string) (token, er
 }
 
 func (r *registryClient) listTags(registryURL, repositoryName string) (*tag, error) {
-	err := r.setCachedToken(registryURL, repositoryName)
+	token, err := r.getCachedToken(registryURL, repositoryName)
 	if err != nil {
 		return nil, err
 	}
@@ -129,6 +134,8 @@ func (r *registryClient) listTags(registryURL, repositoryName string) (*tag, err
 	if err != nil {
 		return nil, err
 	}
+
+	r.AddHeader("Authorization", "Bearer "+token[registryURL+repositoryName].token)
 
 	c.Transport = r.RoundTripper
 
@@ -153,6 +160,11 @@ func (r *registryClient) listTags(registryURL, repositoryName string) (*tag, err
 }
 
 func (r *registryClient) getLastManifestForTagv1(registryURL, repositoryName, tag string) (*domain.Image, error) {
+	token, err := r.getCachedToken(registryURL, repositoryName)
+	if err != nil {
+		return nil, err
+	}
+
 	c := client.New[manifestv1]()
 
 	req, err := client.NewRequest(http.MethodGet, "https://"+registryURL+apiVersion+repositoryName+MANIFEST_ENDPOINT+tag, nil)
@@ -161,6 +173,7 @@ func (r *registryClient) getLastManifestForTagv1(registryURL, repositoryName, ta
 	}
 
 	r.AddHeader("Accept", headerV1)
+	r.AddHeader("Authorization", "Bearer "+token[registryURL+repositoryName].token)
 
 	c.Transport = r.RoundTripper
 
@@ -214,6 +227,11 @@ func (r *registryClient) getLastManifestForTagv1(registryURL, repositoryName, ta
 }
 
 func (r *registryClient) getImageHash(registryURL, repositoryName, tag string) (string, error) {
+	token, err := r.getCachedToken(registryURL, repositoryName)
+	if err != nil {
+		return "", err
+	}
+
 	c := client.New[any]()
 
 	req, err := client.NewRequest(http.MethodGet, "https://"+registryURL+apiVersion+repositoryName+MANIFEST_ENDPOINT+tag, nil)
@@ -221,6 +239,7 @@ func (r *registryClient) getImageHash(registryURL, repositoryName, tag string) (
 		return "", err
 	}
 
+	r.AddHeader("Authorization", "Bearer "+token[registryURL+repositoryName].token)
 	r.AddHeader("Accept", headerV2)
 
 	c.Transport = r.RoundTripper
@@ -254,8 +273,6 @@ func getAuthenticationParams(realmHeader string) (realm string, service string) 
 }
 
 func (r *registryClient) PollingImage(registryURL, repositoryName string, strategy domain.PullingStrategy) (domain.Image, error) {
-	r.setStrategyFunctions()
-
 	tags, err := r.listTags(registryURL, repositoryName)
 	if err != nil {
 		return domain.Image{}, err

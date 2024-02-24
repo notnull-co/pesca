@@ -73,3 +73,8 @@ type Image struct {
 	CreatedAt time.Time
 	Digest    string
 }
+
+type NewImage struct {
+	Isca
+	ImageRevision
+}
