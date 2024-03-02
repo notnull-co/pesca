@@ -148,7 +148,8 @@ func (r *svc) StartPolling(ctx context.Context) (chan *domain.NewImage, error) {
 		}
 
 		go func(isca domain.Isca) error {
-			lastUpdatedImage, err := r.reg.PollingImage(isca.Registry.Url, isca.Deployment.Repository, isca.PullingStrategy)
+
+			latestImage, err := r.reg.PollingImage(isca.Registry.Url, isca.Deployment.Repository, isca.PullingStrategy)
 			if err != nil {
 				return err
 			}
@@ -162,14 +163,14 @@ func (r *svc) StartPolling(ctx context.Context) (chan *domain.NewImage, error) {
 				imageRevision = &domain.ImageRevision{}
 			}
 
-			if imageRevision.Version == lastUpdatedImage.Digest {
+			if imageRevision.Version == latestImage.Digest {
 				return nil
 			}
 
 			newImage, err := r.repo.CreateImageRevision(domain.ImageRevision{
 				IscaId:                  isca.Id,
 				PreviousImageRevisionId: imageRevision.Id,
-				Version:                 lastUpdatedImage.Digest,
+				Version:                 latestImage.Digest,
 				CreatedAt:               time.Now(),
 				Status:                  domain.ImageStatusPending,
 			})
