@@ -31,6 +31,6 @@ func (e *httpError) Error() string {
 	return fmt.Sprintf("HTTP Error: %d - %s", e.Code, e.Message)
 }
 
-type tag struct {
+type tags struct {
 	Tags []string `json:"tags"`
 }

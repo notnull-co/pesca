@@ -15,8 +15,9 @@ const (
 	RollbackStrategyRecreate   RollbackStrategy = 2
 	RollbackStrategyRestart    RollbackStrategy = 3
 
-	Lexicographic PullingStrategy = 0
-	LastDate      PullingStrategy = 1
+	UnknownStrategy       PullingStrategy = 0
+	LexicographicStrategy PullingStrategy = 1
+	LatestByDateStrategy  PullingStrategy = 2
 )
 
 type (

@@ -26,14 +26,14 @@ type RegistryClient interface {
 }
 
 type registryClient struct {
-	*RoundTripper
-	strategyFunction map[domain.PullingStrategy]func(tags *tag, registryURL string, repositoryName string) (*domain.Image, error)
+	*roundTripper
+	strategyFunction map[domain.PullingStrategy]func(tags []string, registryURL string, repositoryName string) (*domain.Image, error)
 }
 
 func NewRegistry() RegistryClient {
 	registry := &registryClient{
-		RoundTripper:     newRoundTripper(map[string]string{}),
-		strategyFunction: map[domain.PullingStrategy]func(tags *tag, registryURL string, repositoryName string) (*domain.Image, error){},
+		roundTripper:     newRoundTripper(),
+		strategyFunction: map[domain.PullingStrategy]func(tags []string, registryURL string, repositoryName string) (*domain.Image, error){},
 	}
 
 	defer registry.setStrategyFunctions()
@@ -42,8 +42,8 @@ func NewRegistry() RegistryClient {
 }
 
 func (r *registryClient) setStrategyFunctions() {
-	r.strategyFunction[domain.Lexicographic] = r.applyLexicographicStrategy
-	r.strategyFunction[domain.LastDate] = r.applyLastDateStrategy
+	r.strategyFunction[domain.LexicographicStrategy] = r.applyLexicographicStrategy
+	r.strategyFunction[domain.LatestByDateStrategy] = r.applyLatestDateStrategy
 }
 
 var cachedToken = map[string]struct {
@@ -56,7 +56,9 @@ func (r *registryClient) getCachedToken(registryURL, repositoryName string) (map
 	expiresAt time.Time
 }, error) {
 	token, ok := cachedToken[registryURL+repositoryName]
+
 	if !ok || time.Until(token.expiresAt) < 30*time.Second {
+
 		token, err := r.setToken(registryURL, repositoryName)
 		if err != nil {
 			return nil, err
@@ -122,26 +124,26 @@ func (r *registryClient) setToken(registryURL, repositoryName string) (token, er
 	return token{}, nil
 }
 
-func (r *registryClient) listTags(registryURL, repositoryName string) (*tag, error) {
+func (r *registryClient) getTags(registryURL, repositoryName string) (tags, error) {
 	token, err := r.getCachedToken(registryURL, repositoryName)
 	if err != nil {
-		return nil, err
+		return tags{}, err
 	}
 
-	c := client.New[tag]()
+	c := client.New[tags]()
 
 	req, err := client.NewRequest(http.MethodGet, "https://"+registryURL+apiVersion+repositoryName+LIST_TAGS_ENDPOINT, nil)
 	if err != nil {
-		return nil, err
+		return tags{}, err
 	}
 
-	r.AddHeader("Authorization", "Bearer "+token[registryURL+repositoryName].token)
+	r.addHeader("Authorization", "Bearer "+token[registryURL+repositoryName].token)
 
 	c.Transport = r.RoundTripper
 
-	tags, httpResponse, err := c.Do(req)
+	results, httpResponse, err := c.Do(req)
 	if err != nil {
-		return nil, err
+		return tags{}, err
 	}
 
 	if httpResponse != nil {
@@ -149,17 +151,17 @@ func (r *registryClient) listTags(registryURL, repositoryName string) (*tag, err
 			var httpError httpError
 
 			if err := json.Unmarshal(httpResponse.Body(), &httpError); err != nil {
-				return nil, err
+				return tags{}, err
 			}
 
-			return nil, &httpError
+			return tags{}, &httpError
 		}
 	}
 
-	return tags, nil
+	return *results, nil
 }
 
-func (r *registryClient) getLastManifestForTagv1(registryURL, repositoryName, tag string) (*domain.Image, error) {
+func (r *registryClient) getLatestManifestForTag(registryURL, repositoryName, tag string) (*domain.Image, error) {
 	token, err := r.getCachedToken(registryURL, repositoryName)
 	if err != nil {
 		return nil, err
@@ -172,8 +174,8 @@ func (r *registryClient) getLastManifestForTagv1(registryURL, repositoryName, ta
 		return nil, err
 	}
 
-	r.AddHeader("Accept", headerV1)
-	r.AddHeader("Authorization", "Bearer "+token[registryURL+repositoryName].token)
+	r.addHeader("Accept", headerV1)
+	r.addHeader("Authorization", "Bearer "+token[registryURL+repositoryName].token)
 
 	c.Transport = r.RoundTripper
 
@@ -185,7 +187,6 @@ func (r *registryClient) getLastManifestForTagv1(registryURL, repositoryName, ta
 	if httpResponse != nil {
 		if httpResponse.StatusCode > http.StatusOK {
 			var httpError httpError
-
 			if err := json.Unmarshal(httpResponse.Body(), &httpError); err != nil {
 				return nil, err
 			}
@@ -197,7 +198,6 @@ func (r *registryClient) getLastManifestForTagv1(registryURL, repositoryName, ta
 	var lastDate time.Time
 	for _, history := range response.History {
 		var compatibility v1Compatibility
-
 		if err := json.Unmarshal([]byte(history.V1Compatibility), &compatibility); err != nil {
 			return nil, err
 		}
@@ -239,8 +239,8 @@ func (r *registryClient) getImageHash(registryURL, repositoryName, tag string) (
 		return "", err
 	}
 
-	r.AddHeader("Authorization", "Bearer "+token[registryURL+repositoryName].token)
-	r.AddHeader("Accept", headerV2)
+	r.addHeader("Authorization", "Bearer "+token[registryURL+repositoryName].token)
+	r.addHeader("Accept", headerV2)
 
 	c.Transport = r.RoundTripper
 
@@ -273,12 +273,12 @@ func getAuthenticationParams(realmHeader string) (realm string, service string) 
 }
 
 func (r *registryClient) PollingImage(registryURL, repositoryName string, strategy domain.PullingStrategy) (domain.Image, error) {
-	tags, err := r.listTags(registryURL, repositoryName)
+	tags, err := r.getTags(registryURL, repositoryName)
 	if err != nil {
 		return domain.Image{}, err
 	}
 
-	image, err := r.strategyFunction[strategy](tags, registryURL, repositoryName)
+	image, err := r.strategyFunction[strategy](tags.Tags, registryURL, repositoryName)
 	if err != nil {
 		return domain.Image{}, nil
 	}
@@ -286,12 +286,13 @@ func (r *registryClient) PollingImage(registryURL, repositoryName string, strate
 	return *image, nil
 }
 
-func (r *registryClient) applyLastDateStrategy(tags *tag, registryURL, repositoryName string) (*domain.Image, error) {
-	results := make(chan *domain.Image, len(tags.Tags))
+func (r *registryClient) applyLatestDateStrategy(tags []string, registryURL, repositoryName string) (*domain.Image, error) {
+	results := make(chan *domain.Image, len(tags))
 
-	for _, tag := range tags.Tags {
+	for _, tag := range tags {
 		go func(tag string) {
-			manifest, err := r.getLastManifestForTagv1(registryURL, repositoryName, tag)
+
+			manifest, err := r.getLatestManifestForTag(registryURL, repositoryName, tag)
 			if err != nil {
 				log.Fatal().Err(err).Msg("getting last manifest call failed")
 				return
@@ -300,17 +301,17 @@ func (r *registryClient) applyLastDateStrategy(tags *tag, registryURL, repositor
 		}(tag)
 	}
 
-	lastImageCreated := getTheLastImageByDateFromTheChannel(results, len(tags.Tags))
+	lastImageCreated := getLatestImageByDate(results, len(tags))
 
 	return &lastImageCreated, nil
 }
 
-func (r *registryClient) applyLexicographicStrategy(tags *tag, registryURL, repositoryName string) (*domain.Image, error) {
-	sort.Strings(tags.Tags)
+func (r *registryClient) applyLexicographicStrategy(tags []string, registryURL, repositoryName string) (*domain.Image, error) {
+	sort.Strings(tags)
 
-	lastTagReleased := tags.Tags[len(tags.Tags)-1]
+	lastTagReleased := tags[len(tags)-1]
 
-	image, err := r.getLastManifestForTagv1(registryURL, repositoryName, lastTagReleased)
+	image, err := r.getLatestManifestForTag(registryURL, repositoryName, lastTagReleased)
 	if err != nil {
 		return nil, err
 	}
@@ -318,7 +319,7 @@ func (r *registryClient) applyLexicographicStrategy(tags *tag, registryURL, repo
 	return image, nil
 }
 
-func getTheLastImageByDateFromTheChannel(channel chan *domain.Image, lenTags int) domain.Image {
+func getLatestImageByDate(channel chan *domain.Image, lenTags int) domain.Image {
 	var lastImageCreated domain.Image
 
 	for range lenTags {

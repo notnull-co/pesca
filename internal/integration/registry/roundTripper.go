@@ -1,28 +1,36 @@
 package registry
 
-import "net/http"
+import (
+	"net/http"
+	"sync"
+)
 
-type RoundTripper struct {
+type roundTripper struct {
 	headers map[string]string
+	mu      sync.Mutex
 	http.RoundTripper
 }
 
-func newRoundTripper(headers map[string]string) *RoundTripper {
-	return &RoundTripper{
+func newRoundTripper() *roundTripper {
+	return &roundTripper{
 		RoundTripper: http.DefaultTransport,
-		headers:      headers,
 	}
 }
 
-func (r *RoundTripper) AddHeader(key, value string) {
+func (r *roundTripper) addHeader(key, value string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
 	if r.headers == nil {
 		r.headers = make(map[string]string)
 	}
 
-	r.headers[key] = value
+	if _, ok := r.headers[key]; !ok {
+		r.headers[key] = value
+	}
 }
 
-func (rt *RoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+func (rt *roundTripper) roundTrip(req *http.Request) (*http.Response, error) {
 	for key, value := range rt.headers {
 		req.Header.Add(key, value)
 	}
