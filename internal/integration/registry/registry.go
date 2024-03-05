@@ -79,7 +79,7 @@ func (r *registryClient) getCachedToken(registryURL, repositoryName string) (map
 func (r *registryClient) setToken(registryURL, repositoryName string) (token, error) {
 	c := client.New[any]()
 
-	req, err := client.NewRequest(http.MethodGet, "https://"+registryURL+apiVersion, nil)
+	req, err := client.NewRequest(http.MethodGet, registryURL+apiVersion, nil)
 	if err != nil {
 		return token{}, err
 	}
@@ -132,7 +132,7 @@ func (r *registryClient) getTags(registryURL, repositoryName string) (tags, erro
 
 	c := client.New[tags]()
 
-	req, err := client.NewRequest(http.MethodGet, "https://"+registryURL+apiVersion+repositoryName+LIST_TAGS_ENDPOINT, nil)
+	req, err := client.NewRequest(http.MethodGet, registryURL+apiVersion+repositoryName+LIST_TAGS_ENDPOINT, nil)
 	if err != nil {
 		return tags{}, err
 	}
@@ -169,7 +169,7 @@ func (r *registryClient) getLatestManifestForTag(registryURL, repositoryName, ta
 
 	c := client.New[manifestv1]()
 
-	req, err := client.NewRequest(http.MethodGet, "https://"+registryURL+apiVersion+repositoryName+MANIFEST_ENDPOINT+tag, nil)
+	req, err := client.NewRequest(http.MethodGet, registryURL+apiVersion+repositoryName+MANIFEST_ENDPOINT+tag, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -234,7 +234,7 @@ func (r *registryClient) getImageHash(registryURL, repositoryName, tag string) (
 
 	c := client.New[any]()
 
-	req, err := client.NewRequest(http.MethodGet, "https://"+registryURL+apiVersion+repositoryName+MANIFEST_ENDPOINT+tag, nil)
+	req, err := client.NewRequest(http.MethodGet, registryURL+apiVersion+repositoryName+MANIFEST_ENDPOINT+tag, nil)
 	if err != nil {
 		return "", err
 	}
