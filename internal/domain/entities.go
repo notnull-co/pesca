@@ -47,7 +47,7 @@ type Deployment struct {
 	Active        bool
 	Namespace     string
 	ContainerName string
-	Repository    string
+	Image         string
 }
 
 type Anzol struct {
@@ -56,7 +56,8 @@ type Anzol struct {
 }
 
 type Registry struct {
-	Url string
+	Repository  string
+	RegistryURL string
 	// TODO: Add credentials HERE
 }
 

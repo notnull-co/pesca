@@ -79,7 +79,7 @@ func (k *k8s) UpdateImage(isca domain.Isca, revision domain.ImageRevision) error
 		for _, c := range deployment.Spec.Template.Spec.Containers {
 			if c.Name == isca.Deployment.ContainerName {
 				found = false
-				c.Image = isca.Registry.Url + isca.Deployment.Repository + ":" + revision.Version
+				c.Image = isca.Registry.RegistryURL + isca.Registry.Repository + ":" + revision.Version
 			}
 		}
 		if !found {
@@ -225,6 +225,7 @@ func mapDeploymentToDomain(deployment *appsv1.Deployment) map[domain.Deployment]
 			Namespace:     deployment.ObjectMeta.Namespace,
 			ContainerName: container.Name,
 			Active:        strings.ToLower(deployment.Annotations["pescar"]) == "true",
+			Image:         container.Image,
 		}] = container.Image
 	}
 	return deploymentImages
@@ -241,7 +242,7 @@ func (k *k8s) getPods(namespace string, deploymentName string) (*corev1.PodList,
 
 func isValid(deployment *appsv1.Deployment, filters map[string]string) bool {
 	for key, value := range filters {
-		if strings.ToLower(deployment.Annotations[key]) != strings.ToLower(value) {
+		if strings.EqualFold(deployment.Annotations[key], value) {
 			return false
 		}
 	}
