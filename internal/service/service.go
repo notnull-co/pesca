@@ -1,13 +1,14 @@
 package service
 
 import (
-	"context"
+	"strings"
 	"time"
 
 	"github.com/notnull-co/pesca/internal/domain"
 	"github.com/notnull-co/pesca/internal/integration/kubernetes"
 	"github.com/notnull-co/pesca/internal/integration/registry"
 	"github.com/notnull-co/pesca/internal/repository"
+	"github.com/rs/zerolog/log"
 )
 
 type svc struct {
@@ -19,7 +20,6 @@ type svc struct {
 type Service interface {
 	UpdateDeployments() error
 	StartRollback(isca domain.Isca, image domain.ImageRevision) error
-	StartPolling(ctx context.Context) (chan *domain.NewImage, error)
 }
 
 func New() Service {
@@ -30,9 +30,21 @@ func New() Service {
 	}
 
 	go svc.UpdateDeployments()
+	go svc.UpdateImagesThroughPollingStrategy()
 
 	return svc
 }
+
+var (
+	// TODO: fix this names
+	registryMap = map[string]string{
+		"docker.io": "https://index.docker.io",
+		"quay.io":   "https://quay.io",
+		"gcr.io":    "https://gcr.io",
+		"amazonaws": "https://amazonaws",
+		"azure":     "https://azure",
+	}
+)
 
 func (r *svc) StartRollback(isca domain.Isca, revision domain.ImageRevision) error {
 	oldRevision, err := r.repo.GetImageRevisionById(revision.PreviousImageRevisionId)
@@ -121,6 +133,14 @@ func (r *svc) UpdateDeployments() error {
 
 				isca.Deployment = createdDeployment
 
+				// TODO: read this from a config file
+				isca.PullingStrategy = domain.LatestByDateStrategy
+
+				registry, repository := extractRegistryAndRepository(createdDeployment.Image)
+
+				isca.Registry.RegistryURL = registry
+				isca.Registry.Repository = repository
+
 				// TODO: Fix this. Add Anzol repository methods
 				isca.AnzolId = 1
 
@@ -135,7 +155,7 @@ func (r *svc) UpdateDeployments() error {
 	}
 }
 
-func (r *svc) StartPolling(ctx context.Context) (chan *domain.NewImage, error) {
+func (r *svc) startPolling() (chan *domain.NewImage, error) {
 	iscas, err := r.repo.GetIscas()
 	if err != nil {
 		return nil, err
@@ -149,7 +169,7 @@ func (r *svc) StartPolling(ctx context.Context) (chan *domain.NewImage, error) {
 
 		go func(isca domain.Isca) error {
 
-			latestImage, err := r.reg.PollingImage(isca.Registry.Url, isca.Deployment.Repository, isca.PullingStrategy)
+			latestImage, err := r.reg.PollingImage(isca.Registry.RegistryURL, isca.Registry.Repository, isca.PullingStrategy)
 			if err != nil {
 				return err
 			}
@@ -159,11 +179,7 @@ func (r *svc) StartPolling(ctx context.Context) (chan *domain.NewImage, error) {
 				return err
 			}
 
-			if imageRevision == nil {
-				imageRevision = &domain.ImageRevision{}
-			}
-
-			if imageRevision.Version == latestImage.Digest {
+			if imageRevision != nil && imageRevision.Version == latestImage.Digest {
 				return nil
 			}
 
@@ -188,4 +204,44 @@ func (r *svc) StartPolling(ctx context.Context) (chan *domain.NewImage, error) {
 	}
 
 	return revisionsToUpdate, nil
+}
+
+func (r *svc) UpdateImagesThroughPollingStrategy() {
+	channel, err := r.startPolling()
+	if err != nil {
+		log.Error().Err(err).Msg("polling failed")
+	}
+
+	for {
+		imageToUpdate := <-channel
+
+		err := r.k8s.UpdateImage(imageToUpdate.Isca, imageToUpdate.ImageRevision)
+		if err != nil {
+			log.Error().Err(err).Msg("an error occurred when trying to updated the image")
+		}
+	}
+}
+
+func extractRegistryAndRepository(image string) (string, string) {
+	parts := strings.Split(image, "/")
+
+	tagIndex := strings.LastIndex(parts[len(parts)-1], ":")
+	if tagIndex != -1 {
+		parts[len(parts)-1] = parts[len(parts)-1][:tagIndex]
+	}
+
+	if len(parts) < 2 {
+		return registryMap["docker.io"], parts[0]
+	}
+
+	if len(parts) < 3 {
+		return registryMap["docker.io"], strings.Join(parts[:2], "/")
+	}
+
+	registry := parts[0]
+	if _, ok := registryMap[registry]; ok && len(parts) > 2 {
+		return registry, strings.Join(parts[1:3], "/")
+	}
+
+	return "", ""
 }
